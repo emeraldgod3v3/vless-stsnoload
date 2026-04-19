@@ -1,0 +1,13 @@
+name: Start a Shell
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start tmate session
+        uses: mxschmitt/action-tmate@v3
