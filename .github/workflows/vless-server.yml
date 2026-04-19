@@ -8,17 +8,16 @@ on:
         required: false
         default: "8080"
       ws_path:
-        description: "WebSocket path (e.g. /vless)"
+        description: "WebSocket path e.g. /vless"
         required: false
         default: "/"
 
 jobs:
   run-vless:
     runs-on: ubuntu-latest
-    timeout-minutes: 355 # just under GitHub's 6h limit
+    timeout-minutes: 355
 
     steps:
-      # â”€â”€ 1. Generate a fresh UUID for this session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       - name: Generate UUID
         id: uuid
         run: |
@@ -26,36 +25,28 @@ jobs:
           echo "uuid=$UUID" >> $GITHUB_OUTPUT
           echo "Generated UUID: $UUID"
 
-      # â”€â”€ 2. Pull the image â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       - name: Pull Docker image
         run: docker pull docker.io/mstrph28/sts-apimaya:latest
 
-      # â”€â”€ 3. Inspect exposed ports (informational) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       - name: Inspect image metadata
         run: |
-          echo "=== Exposed Ports ==="
-          docker inspect docker.io/mstrph28/sts-apimaya:latest \
-            | jq -r '.[0].Config.ExposedPorts // "none listed"'
-          echo "=== Env Vars ==="
-          docker inspect docker.io/mstrph28/sts-apimaya:latest \
-            | jq -r '.[0].Config.Env[]'
+          echo "--- Exposed Ports ---"
+          docker inspect docker.io/mstrph28/sts-apimaya:latest | jq -r '.[0].Config.ExposedPorts // "none listed"'
+          echo "--- Env Vars ---"
+          docker inspect docker.io/mstrph28/sts-apimaya:latest | jq -r '.[0].Config.Env[]'
 
-      # â”€â”€ 4. Run the container â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       - name: Run VLESS container
         run: |
           docker run -d \
             --name vless \
-            --restart unless-stopped \
             -e UUID=${{ steps.uuid.outputs.uuid }} \
             -p ${{ github.event.inputs.port }}:${{ github.event.inputs.port }} \
             docker.io/mstrph28/sts-apimaya:latest
           sleep 6
 
-      # â”€â”€ 5. Show container logs to confirm it started â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       - name: Container logs
         run: docker logs vless
 
-      # â”€â”€ 6. Install cloudflared â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       - name: Install cloudflared
         run: |
           curl -fsSL \
@@ -64,18 +55,15 @@ jobs:
           sudo dpkg -i cloudflared.deb
           cloudflared --version
 
-      # â”€â”€ 7. Start tunnel and generate VLESS link â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      - name: Start tunnel & print VLESS config
+      - name: Start tunnel and print VLESS config
         run: |
-          # Start cloudflared in background, write logs to file
           cloudflared tunnel \
             --url http://localhost:${{ github.event.inputs.port }} \
             --no-autoupdate \
             --logfile /tmp/cf.log \
             2>&1 &
 
-          # Wait for tunnel URL to appear in logs
-          echo "Waiting for tunnel..."
+          echo "Waiting for tunnel URL..."
           for i in $(seq 1 20); do
             TUNNEL_URL=$(grep -oP 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1)
             if [ -n "$TUNNEL_URL" ]; then break; fi
@@ -90,34 +78,27 @@ jobs:
 
           HOST=$(echo "$TUNNEL_URL" | sed 's|https://||')
           UUID="${{ steps.uuid.outputs.uuid }}"
-          PATH_ENC=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${{ github.event.inputs.ws_path }}'))")
+          WS_PATH="${{ github.event.inputs.ws_path }}"
+          PATH_ENC=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$WS_PATH")
 
-          echo ""
-          echo "â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—"
-          echo "â•‘              VLESS SERVER IS LIVE                       â•‘"
-          echo "â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£"
-          echo "â•‘ Address  : $HOST"
-          echo "â•‘ Port     : 443 (TLS via cloudflared)"
-          echo "â•‘ UUID     : $UUID"
-          echo "â•‘ Path     : ${{ github.event.inputs.ws_path }}"
-          echo "â•‘ Type     : ws + tls"
-          echo "â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£"
-          echo "â•‘ VLESS IMPORT LINK:"
-          echo "â•‘"
-          echo "vless://${UUID}@${HOST}:443?encryption=none&security=tls&sni=${HOST}&type=ws&host=${HOST}&path=${PATH_ENC}#GH-Temp-Server"
-          echo ""
-          echo "â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
-          echo ""
-          echo "NOTE: Server stays alive until this job ends (~6h max)."
-          echo "      Re-run the workflow to get a fresh link."
+          VLESS_LINK="vless://${UUID}@${HOST}:443?encryption=none&security=tls&sni=${HOST}&type=ws&host=${HOST}&path=${PATH_ENC}#STSNOLOAD"
 
-      # â”€â”€ 8. Keep job alive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      - name: Keep alive (polls container health)
+          echo "--------------------------------------"
+          echo "TUNNEL URL : $TUNNEL_URL"
+          echo "HOST       : $HOST"
+          echo "PORT       : 443 (TLS via cloudflared)"
+          echo "UUID       : $UUID"
+          echo "WS PATH    : $WS_PATH"
+          echo "--------------------------------------"
+          echo "VLESS LINK :"
+          echo "$VLESS_LINK"
+          echo "--------------------------------------"
+
+      - name: Keep alive
         run: |
-          echo "Monitoring... Ctrl-C or cancel the job to stop."
           while true; do
             STATUS=$(docker inspect -f '{{.State.Status}}' vless 2>/dev/null || echo "gone")
-            echo "[$(date -u +%H:%M:%S)] Container: $STATUS"
+            echo "[$(date -u +%H:%M:%S)] Container status: $STATUS"
             if [ "$STATUS" != "running" ]; then
               echo "Container stopped. Dumping logs:"
               docker logs vless
