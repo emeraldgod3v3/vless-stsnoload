@@ -45,10 +45,10 @@ jobs:
           EOF
 
           ./easyrsa init-pki
-          echo "GH-OpenVPN-CA" | ./easyrsa build-ca nopass
-          ./easyrsa gen-dh
-          ./easyrsa build-server-full server nopass
-          ./easyrsa build-client-full ${{ github.event.inputs.service_name }} nopass
+          echo "GH-OpenVPN-CA" | ./easyrsa --batch build-ca nopass
+          ./easyrsa --batch gen-dh
+          ./easyrsa --batch build-server-full server nopass
+          ./easyrsa --batch build-client-full ${{ github.event.inputs.service_name }} nopass
           openvpn --genkey secret ~/openvpn-ca/pki/ta.key
 
       - name: Write server config
