@@ -1,4 +1,4 @@
-name: VPN Server
+name: Create VPN Server
 
 env:
   SSH_USER: "bilyabits"
