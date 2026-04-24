@@ -20,11 +20,11 @@ on:
         required: true
       ssh_user:
         description: "SSH username"
-        required: true
+        required: false
         default: ""
       ssh_pass:
         description: "SSH password"
-        required: true
+        required: false
         default: ""
       enable_wireguard:
         description: "Enable WireGuard"
@@ -93,7 +93,7 @@ jobs:
         run: |
           sudo useradd -m -s /bin/bash $FINAL_USER
           echo "$FINAL_USER:$FINAL_PASS" | sudo chpasswd
-          sudo systemctl restart sshd
+          sudo systemctl restart ssh
 
       - name: Start WebSocket SSH bridge
         if: env.ENA_WS == 'true'
