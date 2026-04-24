@@ -136,13 +136,13 @@ jobs:
           NGROK_API=$(curl -s http://127.0.0.1:4040/api/tunnels)
 
           get_tunnel () {
-            echo "$NGROK_API" | python3 -c "
-import sys,json
-data=json.load(sys.stdin)
-for t in data.get('tunnels', []):
-    if '$1' in t.get('name','') or '$1' in t.get('public_url',''):
-        print(t['public_url'].replace('tcp://',''))
-"
+            echo "$NGROK_API" | python3 -c ".
+            import sys,json
+            data=json.load(sys.stdin)
+            for t in data.get('tunnels', []):
+             if '$1' in t.get('name','') or '$1' in t.get('public_url',''):
+             print(t['public_url'].replace('tcp://',''))
+             "
           }
 
           SSH_ADDR=$(get_tunnel ssh)
